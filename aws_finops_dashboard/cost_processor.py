@@ -4,12 +4,14 @@ import os
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+from io import StringIO
 
 from boto3.session import Session
 from rich.console import Console
 
 from aws_finops_dashboard.aws_client import get_account_id
 from aws_finops_dashboard.types import BudgetInfo, CostData, EC2Summary, ProfileData
+from aws_finops_dashboard.helpers import upload_to_s3
 
 console = Console()
 
@@ -351,97 +353,134 @@ def export_to_csv(
     output_dir: Optional[str] = None,
     previous_period_dates: str = "N/A",
     current_period_dates: str = "N/A",
+    s3_bucket: Optional[str] = None,
+    s3_prefix: Optional[str] = None,
+    session: Optional[Session] = None,
 ) -> Optional[str]:
-    """Export dashboard data to a CSV file."""
+    """Export dashboard data to a CSV file or S3."""
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         base_filename = f"{filename}_{timestamp}.csv"
 
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-            output_filename = os.path.join(output_dir, base_filename)
-        else:
-            output_filename = base_filename
+        csv_buffer = StringIO()
 
         previous_period_header = f"Cost for period\n({previous_period_dates})"
         current_period_header = f"Cost for period\n({current_period_dates})"
 
-        with open(output_filename, "w", newline="") as csvfile:
-            fieldnames = [
-                "CLI Profile",
-                "AWS Account ID",
-                previous_period_header,
-                current_period_header,
-                "Cost By Service",
-                "Budget Status",
-                "EC2 Instances",
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in data:
+        fieldnames = [
+            "CLI Profile",
+            "AWS Account ID",
+            previous_period_header,
+            current_period_header,
+            "Cost By Service",
+            "Budget Status",
+            "EC2 Instances",
+        ]
+        writer = csv.DictWriter(csv_buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in data:
+            services_data = "\n".join(
+                [
+                    f"{service}: ${cost:.2f}"
+                    for service, cost in row["service_costs"]
+                ]
+            )
 
-                services_data = "\n".join(
-                    [
-                        f"{service}: ${cost:.2f}"
-                        for service, cost in row["service_costs"]
-                    ]
-                )
+            budgets_data = (
+                "\n".join(row["budget_info"])
+                if row["budget_info"]
+                else "No budgets"
+            )
 
-                budgets_data = (
-                    "\n".join(row["budget_info"])
-                    if row["budget_info"]
-                    else "No budgets"
-                )
+            ec2_data_summary = "\n".join(
+                [
+                    f"{state}: {count}"
+                    for state, count in row["ec2_summary"].items()
+                    if count > 0
+                ]
+            )
 
-                ec2_data_summary = "\n".join(
-                    [
-                        f"{state}: {count}"
-                        for state, count in row["ec2_summary"].items()
-                        if count > 0
-                    ]
-                )
+            writer.writerow(
+                {
+                    "CLI Profile": row["profile"],
+                    "AWS Account ID": row["account_id"],
+                    previous_period_header: f"${row['last_month']:.2f}",
+                    current_period_header: f"${row['current_month']:.2f}",
+                    "Cost By Service": services_data or "No costs",
+                    "Budget Status": budgets_data or "No budgets",
+                    "EC2 Instances": ec2_data_summary or "No instances",
+                }
+            )
 
-                writer.writerow(
-                    {
-                        "CLI Profile": row["profile"],
-                        "AWS Account ID": row["account_id"],
-                        previous_period_header: f"${row['last_month']:.2f}",
-                        current_period_header: f"${row['current_month']:.2f}",
-                        "Cost By Service": services_data or "No costs",
-                        "Budget Status": budgets_data or "No budgets",
-                        "EC2 Instances": ec2_data_summary or "No instances",
-                    }
+        if s3_bucket and session:
+            s3_key = f"{s3_prefix}/{base_filename}" if s3_prefix else base_filename
+            s3_key = s3_key.lstrip("/")
+            csv_content = csv_buffer.getvalue().encode("utf-8")
+            s3_path = upload_to_s3(csv_content, s3_bucket, s3_key, session, "text/csv")
+            if s3_path:
+                console.print(
+                    f"[bright_green]Successfully exported to S3: {s3_path}[/]"
                 )
-        console.print(
-            f"[bright_green]Exported dashboard data to {os.path.abspath(output_filename)}[/]"
-        )
-        return os.path.abspath(output_filename)
+            return s3_path
+        else:
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+                output_filename = os.path.join(output_dir, base_filename)
+            else:
+                output_filename = base_filename
+            
+            with open(output_filename, "w", newline="") as csvfile:
+                csvfile.write(csv_buffer.getvalue())
+            
+            console.print(
+                f"[bright_green]Exported dashboard data to {os.path.abspath(output_filename)}[/]"
+            )
+            return os.path.abspath(output_filename)
+            
     except Exception as e:
         console.print(f"[bold red]Error exporting to CSV: {str(e)}[/]")
         return None
 
 
 def export_to_json(
-    data: List[ProfileData], filename: str, output_dir: Optional[str] = None
+    data: List[ProfileData], 
+    filename: str, 
+    output_dir: Optional[str] = None,
+    s3_bucket: Optional[str] = None, 
+    s3_prefix: Optional[str] = None, 
+    session: Optional[Session] = None,
 ) -> Optional[str]:
-    """Export dashboard data to a JSON file."""
+    """Export dashboard data to a JSON file or S3."""
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         base_filename = f"{filename}_{timestamp}.json"
 
-        if output_dir:
-            os.makedirs(output_dir, exist_ok=True)
-            output_filename = os.path.join(output_dir, base_filename)
+        json_content = json.dumps(data, indent=4).encode("utf-8")
+
+        if s3_bucket and session:
+            s3_key = f"{s3_prefix}/{base_filename}" if s3_prefix else base_filename
+            s3_key = s3_key.lstrip("/")
+            s3_path = upload_to_s3(json_content, s3_bucket, s3_key, session, "application/json")
+            if s3_path:
+                console.print(
+                    f"[bright_green]Successfully exported to S3: {s3_path}[/]"
+                )
+            return s3_path
         else:
-            output_filename = base_filename
-
-        with open(output_filename, "w") as jsonfile:
-            json.dump(data, jsonfile, indent=4)
-
-        console.print(
-            f"[bright_green]Exported dashboard data to {os.path.abspath(output_filename)}[/]"
-        )
-        return os.path.abspath(output_filename)
+            if output_dir:
+                os.makedirs(output_dir, exist_ok=True)
+                output_filename = os.path.join(output_dir, base_filename)
+            else:
+                output_filename = base_filename
+            
+            with open(output_filename, "w") as jsonfile:
+                jsonfile.write(json_content.decode("utf-8"))
+            
+            console.print(
+                f"[bright_green]Exported dashboard data to {os.path.abspath(output_filename)}[/]"
+            )
+            return os.path.abspath(output_filename)
+            
     except Exception as e:
         console.print(f"[bold red]Error exporting to JSON: {str(e)}[/]")
         return None

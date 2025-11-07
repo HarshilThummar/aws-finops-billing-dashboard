@@ -132,10 +132,37 @@ def main() -> int:
     parser.add_argument(
         "--audit",
         action="store_true",
-        help="Display an audit report with cost anomalies, stopped EC2 instances, unused EBS columes, budget alerts, and more",
+        help="Display an audit report with cost anomalies, stopped EC2 instances, unused EBS volumes, budget alerts, and more",
+    )
+    parser.add_argument(
+        "--s3-bucket",
+        "-s3",
+        help="S3 bucket to export the report files to",
+        type=str,
+    )
+    parser.add_argument(
+        "--s3-prefix",
+        "-s3p",
+        help="S3 prefix to export the report files to",
+        type=str,
+    )
+    parser.add_argument(
+        "--s3-profile",
+        "-s3s",
+        help="CLI profile to use for S3 uploads",
+        type=str,
     )
 
     args = parser.parse_args()
+
+    if args.s3_bucket and args.report_name and not args.s3_profile:
+        console.print(
+            "[bold red]Error: --s3-profile is required when --s3-bucket is specified[/]"
+        )
+        console.print(
+            "[yellow]Please specify which AWS profile to use for S3 upload[/]"
+        )
+        return 1
 
     config_data: Optional[Dict[str, Any]] = None
     if args.config_file:
