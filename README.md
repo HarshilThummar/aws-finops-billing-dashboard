@@ -65,6 +65,8 @@ Key features include:
   - PDF export with `--report-name` and `--report-type pdf`
   - Export to both CSV and JSON formats with `--report-name` and `--report-type csv json`
   - Specify output directory using `--dir`
+  - Export to S3 with `--s3-bucket` and `--s3-profile`
+  - Export to Slack with `--slack` (requires `SLACK_BOT_TOKEN` environment variable)
   - **Note**: Trend reports (generated via `--trend`) currently only support JSON export. Other formats specified in `--report-type` will be ignored for these reports.
 - **Improved Error Handling**: Resilient and user-friendly error messages
 - **Beautiful Terminal UI**: Styled with the Rich library for a visually appealing experience
@@ -160,6 +162,34 @@ Repeat this for all the profiles you want the dashboard to potentially access.
 
 ---
 
+## Slack Setup (Optional)
+
+To send reports to Slack, you need to:
+
+1. **Create a Slack App and Bot Token:**
+   - Go to https://api.slack.com/apps
+   - Create a new app or select an existing one
+   - Navigate to "OAuth & Permissions"
+   - Add Bot Token Scopes:
+     - `files:write` (to upload files)
+     - `chat:write` (to send messages)
+   - Install the app to your workspace
+   - Copy the "Bot User OAuth Token" (starts with `xoxb-`)
+
+2. **Set the Environment Variable:**
+   ```bash
+   export SLACK_BOT_TOKEN=xoxb-your-token-here
+   ```
+
+3. **Use the `--slack` flag with a channel or user identifier:**
+   - Channel name: `--slack "#channel-name"` or `--slack channel-name`
+   - Channel ID: `--slack C1234567890`
+   - User DM: `--slack "@username"` or `--slack U1234567890`
+
+**Note:** The token must be set as an environment variable (`SLACK_BOT_TOKEN`). It cannot be provided via config file or CLI flag for security reasons.
+
+---
+
 ## Command Line Usage
 
 Run the script using `aws-finops` followed by options:
@@ -187,6 +217,7 @@ aws-finops [options]
 | `--s3-bucket`, `-s3` | S3 bucket name to export report files to. When specified, files are uploaded to S3 instead of saving locally. Requires `--s3-profile`. |
 | `--s3-prefix`, `-s3p` | S3 key prefix/folder path for report files (optional). Example: `reports/2025/january` |
 | `--s3-profile`, `-s3s` | AWS CLI profile to use for S3 uploads. Required when `--s3-bucket` is specified. |
+| `--slack` | Send reports to Slack. Provide channel/user identifier: `--slack #channel`, `--slack @user`, or `--slack C1234567890`. Requires `SLACK_BOT_TOKEN` environment variable. |
 
 ### Examples
 
@@ -229,6 +260,16 @@ aws-finops --profiles dev prod --combine --report-name report --report-type csv 
 
 # Export data to CSV format and upload to S3 bucket
 aws-finops --all --report-name aws_dashboard_data --report-type csv --s3-bucket my-finops-reports --s3-profile prod
+
+# Export data to PDF and send to Slack channel (requires SLACK_BOT_TOKEN env var)
+export SLACK_BOT_TOKEN=xoxb-your-token-here
+aws-finops --all --report-name monthly_report --report-type pdf --slack "#finops-reports"
+
+# Export data to Slack DM (use @username or user ID)
+aws-finops --all --report-name monthly_report --report-type pdf --slack "@username"
+
+# Export multiple formats to Slack
+aws-finops --all --report-name monthly_report --report-type csv json pdf --slack "#finops-reports"
 
 # View cost trend analysis as bar charts for profile 'dev' and 'prod'
 aws-finops --profiles dev prod -r us-east-1 --trend

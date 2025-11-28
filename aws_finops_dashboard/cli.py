@@ -152,6 +152,11 @@ def main() -> int:
         help="CLI profile to use for S3 uploads",
         type=str,
     )
+    parser.add_argument(
+        "--slack",
+        help="Send reports to Slack. Provide channel/user identifier: --slack #channel, --slack @user, or --slack C1234567890",
+        type=str,
+    )
 
     args = parser.parse_args()
 
@@ -176,6 +181,20 @@ def main() -> int:
             "[yellow]Please specify which AWS profile to use for S3 upload[/]"
         )
         return 1
+
+    # Validate Slack arguments
+    if args.slack:
+        # Check if token is provided via environment variable
+        import os
+        slack_token = os.getenv("SLACK_BOT_TOKEN")
+        if not slack_token:
+            console.print(
+                "[bold red]Error: SLACK_BOT_TOKEN environment variable is required when --slack is used[/]"
+            )
+            console.print(
+                "[yellow]Please set SLACK_BOT_TOKEN environment variable with your Slack bot token[/]"
+            )
+            return 1
 
     result = run_dashboard(args)
     return 0 if result == 0 else 1
