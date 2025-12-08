@@ -412,8 +412,8 @@ def export_to_csv(
             "AWS Account ID",
             previous_period_header,
             current_period_header,
-            "Previous Cost By Service",
-            "Current Cost By Service",
+            "Previous Period Cost By Service",
+            "Current Period Cost By Service",
             "Budget Status",
             "EC2 Instances",
         ]
@@ -453,8 +453,8 @@ def export_to_csv(
                     "AWS Account ID": row["account_id"],
                     previous_period_header: f"${row['last_month']:.2f}",
                     current_period_header: f"${row['current_month']:.2f}",
-                    "Previous Cost By Service": prev_services_data or "No costs",
-                    "Current Cost By Service": services_data or "No costs",
+                    "Previous Period Cost By Service": prev_services_data or "No costs",
+                    "Current Period Cost By Service": services_data or "No costs",
                     "Budget Status": budgets_data or "No budgets",
                     "EC2 Instances": ec2_data_summary or "No instances",
                 }

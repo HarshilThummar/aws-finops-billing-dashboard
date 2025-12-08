@@ -375,8 +375,8 @@ When exporting to CSV, a file is generated with the following columns:
 - `AWS Account ID`
 - `Last Month Cost` (or previous period based on time range)
 - `Current Month Cost` (or current period based on time range)
-- `Previous Cost By Service` (Each service and its cost appears on a new line within the cell)
-- `Current Cost By Service` (Each service and its cost appears on a new line within the cell)
+- `Previous Period Cost By Service` (Each service and its cost appears on a new line within the cell)
+- `Current Period Cost By Service` (Each service and its cost appears on a new line within the cell)
 - `Budget Status` (Each budget's limit and actual spend appears on a new line within the cell)
 - `EC2 Instances` (Each instance state and its count appears on a new line within the cell)
 

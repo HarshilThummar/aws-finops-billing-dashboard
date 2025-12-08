@@ -357,12 +357,12 @@ def export_cost_dashboard_to_pdf(
             elements.append(keyValueTable(kv_rows))
             elements.append(Spacer(1, 6))
 
-            elements.append(miniHeader("Previous Cost By Service"))
+            elements.append(miniHeader("Previous Period Cost By Service"))
             prev_svc_items = formatServicesForList(row.get("previous_service_costs", []))
             elements.append(bulletList(prev_svc_items))
             elements.append(Spacer(1, 6))
 
-            elements.append(miniHeader("Current Cost By Service"))
+            elements.append(miniHeader("Current Period Cost By Service"))
             svc_items = formatServicesForList(row["service_costs"])
             elements.append(bulletList(svc_items))
             elements.append(Spacer(1, 6))
